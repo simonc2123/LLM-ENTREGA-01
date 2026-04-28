@@ -92,8 +92,8 @@ def load_vectorstore():
     kb_text = KB_PATH.read_text(encoding="utf-8")
 
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=800,
-        chunk_overlap=150,
+        chunk_size=1500,
+        chunk_overlap=200,
         separators=["\n## ", "\n### ", "\n\n", "\n", " "],
     )
     chunks = splitter.split_text(kb_text)
