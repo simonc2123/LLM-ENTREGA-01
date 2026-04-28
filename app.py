@@ -6,26 +6,77 @@ from pathlib import Path
 KB_PATH            = Path("output/knowledge_base.md")
 EMBEDDING_FAMILIES = {"nomic-bert-moe", "bert", "nomic"}
 
-USER_PROMPT_TEMPLATE = """Basándote ÚNICAMENTE en el siguiente contexto sobre Smurfit Kappa Colombia, 
-responde la pregunta. No uses conocimiento externo ni inventes datos. Si la respuesta no está en el contexto, indícalo claramente.
+SYSTEM_PROMPT = """Eres un asistente virtual de Smurfit Kappa Colombia (Cartón de Colombia / Smurfit Westrock).
 
-CONTEXTO:
-{knowledge_base}
+Se te proporcionará un fragmento de información oficial sobre la empresa. Tu trabajo es responder la pregunta del usuario ÚNICAMENTE con ese fragmento.
+
+REGLAS:
+- USA SOLO la información del fragmento proporcionado.
+- Si el fragmento contiene la respuesta, dala de forma clara y completa.
+- Si el fragmento NO contiene información suficiente, responde: "Esa información no está disponible."
+- NUNCA uses tu conocimiento previo sobre la empresa — puede estar desactualizado o ser incorrecto.
+- Responde siempre en español."""
+
+USER_PROMPT_TEMPLATE = """Fragmento oficial:
+\"\"\"
+{context}
+\"\"\"
 
 Pregunta: {question}"""
 
 
 def strip_thinking(text: str) -> str:
-    # Quitar bloques cerrados <think>...</think>
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-    # Quitar bloque abierto sin cerrar
     text = re.sub(r"<think>.*$", "", text, flags=re.DOTALL)
     return text.strip()
 
 
-@st.cache_data
 def load_knowledge_base() -> str:
     return KB_PATH.read_text(encoding="utf-8") if KB_PATH.exists() else ""
+
+
+def retrieve_context(kb: str, question: str, max_chars: int = 3000) -> str:
+    """
+    Recupera los fragmentos más relevantes del KB mediante búsqueda por keywords.
+    Devuelve siempre la tabla de Datos Clave + los párrafos más relevantes.
+    """
+    # Extraer tabla de datos clave (siempre incluir — está al inicio)
+    key_table = ""
+    table_match = re.search(r"## Datos Clave.*?\n\n(.*?)\n\n", kb, re.DOTALL)
+    if table_match:
+        key_table = table_match.group(0).strip()
+
+    # Dividir el KB en párrafos (bloques separados por líneas vacías)
+    paragraphs = [p.strip() for p in re.split(r"\n{2,}", kb) if p.strip()]
+
+    # Palabras clave de la pregunta (quitar stopwords simples)
+    stopwords = {"fue", "el", "la", "los", "las", "de", "en", "que", "y", "a",
+                 "es", "se", "un", "una", "del", "al", "con", "su", "por",
+                 "qué", "quién", "cuándo", "dónde", "cómo", "cuántos", "cuál"}
+    q_words = {w.lower().strip("¿?.,") for w in question.split() if w.lower() not in stopwords}
+
+    def score(para: str) -> int:
+        lower = para.lower()
+        return sum(1 for w in q_words if w in lower)
+
+    # Ordenar párrafos por relevancia
+    scored = sorted(paragraphs, key=score, reverse=True)
+
+    # Construir contexto: tabla de datos + párrafos más relevantes
+    context_parts = [key_table] if key_table else []
+    used_chars = len(key_table)
+
+    for para in scored:
+        if para == key_table:
+            continue
+        if score(para) == 0:
+            break
+        if used_chars + len(para) > max_chars:
+            break
+        context_parts.append(para)
+        used_chars += len(para)
+
+    return "\n\n".join(context_parts)
 
 
 def get_local_models() -> list[str]:
@@ -40,13 +91,16 @@ def get_local_models() -> list[str]:
 
 
 def query_ollama(model: str, kb: str, question: str):
-    prompt = USER_PROMPT_TEMPLATE.format(knowledge_base=kb, question=question)
+    context  = retrieve_context(kb, question)
+    user_msg = USER_PROMPT_TEMPLATE.format(context=context, question=question)
     stream = ollama.chat(
         model=model,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user",   "content": user_msg},
+        ],
         stream=True,
-        options={"temperature": 0.3},
-        think=False,
+        options={"temperature": 0.0},
     )
     for chunk in stream:
         yield chunk.message.content
@@ -80,8 +134,8 @@ if st.button("Enviar", type="primary"):
     if not question.strip():
         st.warning("Escribe una pregunta primero.")
     else:
-        answer_box   = st.empty()
-        full_answer  = ""
+        answer_box  = st.empty()
+        full_answer = ""
         with st.spinner("Procesando..."):
             try:
                 for token in query_ollama(model, kb, question.strip()):

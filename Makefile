@@ -1,4 +1,18 @@
-.PHONY: scrape kb app all
+.PHONY: help scrape kb app rag all
+
+# Muestra los comandos disponibles (target por defecto)
+help:
+	@echo ""
+	@echo "Smurfit Kappa Colombia — Q&A System"
+	@echo "====================================="
+	@echo ""
+	@echo "Comandos disponibles:"
+	@echo "  make scrape   Scrapea el sitio web de Smurfit Kappa Colombia"
+	@echo "  make kb       Genera las bases de conocimiento (compacta + RAG)"
+	@echo "  make app      Lanza la app Q&A con busqueda por keywords"
+	@echo "  make rag      Lanza la app Q&A con embeddings semanticos (RAG)"
+	@echo "  make all      Ejecuta scrape + kb + app en orden"
+	@echo ""
 
 # Corre todo en orden
 all: scrape kb app
@@ -7,10 +21,14 @@ all: scrape kb app
 scrape:
 	uv run scraper.py
 
-# 2. Generar la base de conocimiento en Markdown
+# 2. Generar ambas bases de conocimiento (compacta + RAG)
 kb:
 	uv run build_kb.py
 
-# 3. Lanzar la aplicación Q&A
+# 3. Lanzar la aplicación Q&A (versión keyword)
 app:
 	uv run streamlit run app.py
+
+# 4. Lanzar la aplicación Q&A con RAG (embeddings semánticos)
+rag:
+	uv run streamlit run app_rag.py

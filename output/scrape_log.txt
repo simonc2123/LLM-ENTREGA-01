@@ -1485,3 +1485,6 @@
 2026-04-17 17:56:09,200 [INFO] Crawl completado: 1401 páginas | 1401 URLs visitadas
 2026-04-17 17:56:09,786 [INFO] [GUARDADO] Checkpoint 1401: 1401 páginas | 4079 chunks → output/
 2026-04-17 17:56:09,788 [INFO] Tiempo total: 318.9s
+2026-04-28 00:43:21,681 [WARNING] No se pudo cargar robots.txt (Cannot connect to host www.smurfitkappa.com:443 ssl:default [getaddrinfo failed]). Se asume acceso permitido.
+2026-04-28 00:43:21,682 [INFO] Iniciando crawl async: https://www.smurfitkappa.com/co | concurrencia=10
+2026-04-28 00:43:21,731 [WARNING] [ERROR intento 1/3] https://www.smurfitkappa.com/co: Cannot connect to host www.smurfitkappa.com:443 ssl:default [getaddrinfo failed] → reintentando en 2.0s

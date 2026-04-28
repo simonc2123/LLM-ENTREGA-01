@@ -10,6 +10,9 @@ __pycache__/
 # Configuración local de Claude
 .claude/
 
+# Caché de embeddings (se regenera automáticamente)
+output/embeddings_rag.npz
+
 # Credenciales y variables de entorno
 .env
 .env.*
