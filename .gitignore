@@ -12,6 +12,7 @@ __pycache__/
 
 # Caché de embeddings (se regenera automáticamente)
 output/embeddings_rag.npz
+output/faiss_index/
 
 # Credenciales y variables de entorno
 .env
