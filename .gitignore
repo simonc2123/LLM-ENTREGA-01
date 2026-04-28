@@ -1,0 +1,17 @@
+# Entorno virtual UV
+.venv/
+
+# Cache de Python y mypy
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+
+# Configuración local de Claude
+.claude/
+
+# Credenciales y variables de entorno
+.env
+.env.*
+*.key
+secrets.toml
