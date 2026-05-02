@@ -37,3 +37,13 @@ rag:
 # 5. Lanzar la aplicación Q&A con RAG — Google Gemini + fallback Ollama
 rag-google:
 	uv run streamlit run app_rag_google.py
+
+# 6. Verificar estilo y calidad del código (sin modificar archivos)
+lint:
+	uv run ruff check .
+	uv run ruff format --check .
+
+# 7. Corregir y formatear automáticamente
+format:
+	uv run ruff check --fix .
+	uv run ruff format .

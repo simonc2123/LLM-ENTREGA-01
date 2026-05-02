@@ -12,13 +12,13 @@ import re
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
-INPUT      = Path("output/full_dump.json")
-OUTPUT     = Path("output/knowledge_base.md")
+INPUT = Path("output/full_dump.json")
+OUTPUT = Path("output/knowledge_base.md")
 OUTPUT_RAG = Path("output/knowledge_base_rag.md")
 
 PRIORITY_PATTERNS = [
-    ("/co/about",                 "## Sobre la Empresa"),
-    ("/co/locations",             "## Ubicaciones y Plantas"),
+    ("/co/about", "## Sobre la Empresa"),
+    ("/co/locations", "## Ubicaciones y Plantas"),
     ("/co/products-and-services", "## Productos y Servicios"),
 ]
 
@@ -28,20 +28,46 @@ ALWAYS_INCLUDE = {"https://www.smurfitkappa.com/co"}
 MAX_WORDS_COMPACT = 6_000
 
 # Versión RAG — el modelo solo ve los chunks recuperados, el KB puede ser grande
-PRODUCTS_LIMIT_RAG = 25   # top-25 páginas de productos por word_count
+PRODUCTS_LIMIT_RAG = 25  # top-25 páginas de productos por word_count
 
 MIN_WORDS = 80
 
 NAV_NOISE = {
-    "Quiénes somos", "Qué hacemos", "Propósito", "Visión y estrategia",
-    "Ética", "Nuestra historia", "Mensaje del CEO", "Servicios Speak Up",
-    "Expandir ícono", "Expandir Icono", "Leer más", "Conoce más",
-    "Más información", "Ver más", "Conoce cómo", "Lee el comunicado",
-    "Filtrar por país", "Country", "selected", "Expandir",
-    "Productos y servicios", "Sectores de mercado", "País",
-    "Sostenibilidad", "Noticias", "Sala de prensa", "Contacto",
-    "Inicio", "Inicio de sesión", "Cerrar sesión", "Buscar",
-    "Siguenos", "Síguenos", "Política de privacidad", "Términos y condiciones",
+    "Quiénes somos",
+    "Qué hacemos",
+    "Propósito",
+    "Visión y estrategia",
+    "Ética",
+    "Nuestra historia",
+    "Mensaje del CEO",
+    "Servicios Speak Up",
+    "Expandir ícono",
+    "Expandir Icono",
+    "Leer más",
+    "Conoce más",
+    "Más información",
+    "Ver más",
+    "Conoce cómo",
+    "Lee el comunicado",
+    "Filtrar por país",
+    "Country",
+    "selected",
+    "Expandir",
+    "Productos y servicios",
+    "Sectores de mercado",
+    "País",
+    "Sostenibilidad",
+    "Noticias",
+    "Sala de prensa",
+    "Contacto",
+    "Inicio",
+    "Inicio de sesión",
+    "Cerrar sesión",
+    "Buscar",
+    "Siguenos",
+    "Síguenos",
+    "Política de privacidad",
+    "Términos y condiciones",
     "Todos los derechos reservados",
 }
 
@@ -79,13 +105,14 @@ Estas son las sedes, plantas y direcciones de Smurfit Kappa (Smurfit Westrock / 
 
 
 def clean_content(text: str) -> str:
+    """Limpia el contenido de una página: elimina ruido de navegación, duplicados y líneas vacías."""
     text = re.sub(r"\[\[expand:[^\]]+\]\]", "", text)
     text = re.sub(r"^\s*\d+\s*$", "", text, flags=re.MULTILINE)
     text = re.sub(r"^\s*/\s*\d+\s*$", "", text, flags=re.MULTILINE)
     text = re.sub(r"\n{3,}", "\n\n", text)
 
     lines = text.splitlines()
-    seen  = set()
+    seen = set()
     clean = []
     for line in lines:
         stripped = line.strip()
@@ -102,13 +129,14 @@ def clean_content(text: str) -> str:
 
 
 def normalize_url(url: str) -> str:
+    """Normaliza una URL eliminando query string, fragmento y barra final."""
     parsed = urlparse(url)
     return urlunparse(("https", parsed.netloc, parsed.path, "", "", "")).rstrip("/")
 
 
 def load_pages(data: dict) -> tuple[dict | None, list[dict], dict[str, list[dict]]]:
     """Carga y agrupa páginas deduplicadas por sección."""
-    home_page    = None
+    home_page = None
     pinned_pages = []
     sections: dict[str, list[dict]] = {}
     seen_paths: set[str] = set()
@@ -144,10 +172,16 @@ def load_pages(data: dict) -> tuple[dict | None, list[dict], dict[str, list[dict
     return home_page, pinned_pages, sections
 
 
-def render_pages(home_page, pinned_pages, sections, limits: dict[str, int],
-                 max_words: int, skip_locations_root: bool = False) -> str:
+def render_pages(
+    home_page,
+    pinned_pages,
+    sections,
+    limits: dict[str, int],
+    max_words: int,
+    skip_locations_root: bool = False,
+) -> str:
     """Construye el markdown final dado los límites por sección."""
-    lines       = [HEADER]
+    lines = [HEADER]
     total_words = 120  # header
 
     if home_page:
@@ -173,7 +207,7 @@ def render_pages(home_page, pinned_pages, sections, limits: dict[str, int],
                 print(f"  [skip] {page['url']} (raiz locations excluida en RAG)")
                 continue
             content = clean_content(page["content"])
-            words   = len(content.split())
+            words = len(content.split())
             lines.append(f"### {page['title']}\n\n{content}\n")
             total_words += words
             print(f"  [+] {page['url']} ({words} w)")
@@ -185,11 +219,15 @@ def render_pages(home_page, pinned_pages, sections, limits: dict[str, int],
 
 
 def write_summary(path: Path, total_words: int) -> None:
-    print(f"  Palabras : {total_words:,}  |  Tokens ~{int(total_words*1.35):,}  |  {path.stat().st_size/1024:.1f} KB")
+    """Imprime métricas del archivo generado: palabras, tokens estimados y tamaño en KB."""
+    print(
+        f"  Palabras : {total_words:,}  |  Tokens ~{int(total_words * 1.35):,}  |  {path.stat().st_size / 1024:.1f} KB"
+    )
     print(f"  Ruta     : {path.resolve()}")
 
 
 def build_knowledge_base():
+    """Genera knowledge_base.md (compacta) y knowledge_base_rag.md (completa) desde full_dump.json."""
     print(f"Leyendo {INPUT}...")
     data = json.loads(INPUT.read_text(encoding="utf-8"))
     print(f"Total páginas disponibles: {len(data['pages'])}")
@@ -199,13 +237,16 @@ def build_knowledge_base():
     # ── Versión compacta ──────────────────────────────────────────────────────
     print("\n[Compacta] knowledge_base.md")
     compact_limits = {
-        "## Sobre la Empresa":      999,
+        "## Sobre la Empresa": 999,
         "## Ubicaciones y Plantas": 1,
         "## Productos y Servicios": 999,
     }
     md_compact, words_compact = render_pages(
-        home_page, pinned_pages, sections,
-        limits=compact_limits, max_words=MAX_WORDS_COMPACT,
+        home_page,
+        pinned_pages,
+        sections,
+        limits=compact_limits,
+        max_words=MAX_WORDS_COMPACT,
     )
     OUTPUT.write_text(md_compact, encoding="utf-8")
     write_summary(OUTPUT, words_compact)
@@ -213,14 +254,17 @@ def build_knowledge_base():
     # ── Versión RAG ───────────────────────────────────────────────────────────
     print("\n[RAG] knowledge_base_rag.md")
     rag_limits = {
-        "## Sobre la Empresa":      999,              # todas las páginas /about
-        "## Ubicaciones y Plantas": 999,              # todas las plantas
+        "## Sobre la Empresa": 999,  # todas las páginas /about
+        "## Ubicaciones y Plantas": 999,  # todas las plantas
         "## Productos y Servicios": PRODUCTS_LIMIT_RAG,
     }
     md_rag, words_rag = render_pages(
-        home_page, pinned_pages, sections,
-        limits=rag_limits, max_words=0,  # 0 = sin límite
-        skip_locations_root=True,        # usar solo páginas individuales de plantas
+        home_page,
+        pinned_pages,
+        sections,
+        limits=rag_limits,
+        max_words=0,  # 0 = sin límite
+        skip_locations_root=True,  # usar solo páginas individuales de plantas
     )
     OUTPUT_RAG.write_text(md_rag, encoding="utf-8")
     write_summary(OUTPUT_RAG, words_rag)

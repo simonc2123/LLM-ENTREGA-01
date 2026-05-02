@@ -1,9 +1,12 @@
+"""app.py — Q&A con búsqueda por keywords usando Ollama (100% local)."""
+
 import re
-import streamlit as st
-import ollama
 from pathlib import Path
 
-KB_PATH            = Path("output/knowledge_base.md")
+import ollama
+import streamlit as st
+
+KB_PATH = Path("output/knowledge_base.md")
 EMBEDDING_FAMILIES = {"nomic-bert-moe", "bert", "nomic"}
 
 SYSTEM_PROMPT = """Eres un asistente virtual de Smurfit Kappa Colombia (Cartón de Colombia / Smurfit Westrock).
@@ -26,12 +29,14 @@ Pregunta: {question}"""
 
 
 def strip_thinking(text: str) -> str:
+    """Elimina bloques <think>...</think> del output del modelo antes de mostrarlo."""
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
     text = re.sub(r"<think>.*$", "", text, flags=re.DOTALL)
     return text.strip()
 
 
 def load_knowledge_base() -> str:
+    """Carga el knowledge base desde disco; retorna string vacío si no existe."""
     return KB_PATH.read_text(encoding="utf-8") if KB_PATH.exists() else ""
 
 
@@ -50,9 +55,34 @@ def retrieve_context(kb: str, question: str, max_chars: int = 3000) -> str:
     paragraphs = [p.strip() for p in re.split(r"\n{2,}", kb) if p.strip()]
 
     # Palabras clave de la pregunta (quitar stopwords simples)
-    stopwords = {"fue", "el", "la", "los", "las", "de", "en", "que", "y", "a",
-                 "es", "se", "un", "una", "del", "al", "con", "su", "por",
-                 "qué", "quién", "cuándo", "dónde", "cómo", "cuántos", "cuál"}
+    stopwords = {
+        "fue",
+        "el",
+        "la",
+        "los",
+        "las",
+        "de",
+        "en",
+        "que",
+        "y",
+        "a",
+        "es",
+        "se",
+        "un",
+        "una",
+        "del",
+        "al",
+        "con",
+        "su",
+        "por",
+        "qué",
+        "quién",
+        "cuándo",
+        "dónde",
+        "cómo",
+        "cuántos",
+        "cuál",
+    }
     q_words = {w.lower().strip("¿?.,") for w in question.split() if w.lower() not in stopwords}
 
     def score(para: str) -> int:
@@ -80,9 +110,11 @@ def retrieve_context(kb: str, question: str, max_chars: int = 3000) -> str:
 
 
 def get_local_models() -> list[str]:
+    """Retorna los modelos LLM disponibles en Ollama excluyendo modelos de embeddings."""
     try:
         return [
-            m.model for m in ollama.list().models
+            m.model
+            for m in ollama.list().models
             if not any(f in (m.details.family or "") for f in EMBEDDING_FAMILIES)
             and "embed" not in m.model.lower()
         ]
@@ -91,13 +123,14 @@ def get_local_models() -> list[str]:
 
 
 def query_ollama(model: str, kb: str, question: str):
-    context  = retrieve_context(kb, question)
+    """Genera una respuesta en streaming usando Ollama con el contexto recuperado por keywords."""
+    context = retrieve_context(kb, question)
     user_msg = USER_PROMPT_TEMPLATE.format(context=context, question=question)
     stream = ollama.chat(
         model=model,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user",   "content": user_msg},
+            {"role": "user", "content": user_msg},
         ],
         stream=True,
         options={"temperature": 0.0},
@@ -118,12 +151,15 @@ with st.sidebar:
     if not models:
         st.error("No se pudo conectar a Ollama o no hay modelos disponibles.")
         st.stop()
-    preferred   = next((m for m in ["llama3.2:3b", "qwen3-fast:latest", "qwen3:4b", "gemma4:e2b"] if m in models), None)
+    preferred = next(
+        (m for m in ["llama3.2:3b", "qwen3-fast:latest", "qwen3:4b", "gemma4:e2b"] if m in models),
+        None,
+    )
     default_idx = models.index(preferred) if preferred else 0
-    model       = st.selectbox("Modelo", models, index=default_idx)
+    model = st.selectbox("Modelo", models, index=default_idx)
     st.caption("Ollama local")
 
-kb       = load_knowledge_base()
+kb = load_knowledge_base()
 question = st.text_area(
     "Escribe tu pregunta:",
     height=120,
@@ -134,7 +170,7 @@ if st.button("Enviar", type="primary"):
     if not question.strip():
         st.warning("Escribe una pregunta primero.")
     else:
-        answer_box  = st.empty()
+        answer_box = st.empty()
         full_answer = ""
         with st.spinner("Procesando..."):
             try:
