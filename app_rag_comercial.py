@@ -23,18 +23,21 @@ Uso:
 """
 
 import os
+import sys
 import time
-from pathlib import Path
 
 import streamlit as st
 from dotenv import load_dotenv
-from langchain_community.vectorstores import FAISS
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from pathlib import Path
+
 from langchain_moonshot import ChatMoonshot
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
 
 # ── Cargar variables de entorno ───────────────────────────────────────────────
 
@@ -42,13 +45,13 @@ load_dotenv()
 
 # ── Configuración ─────────────────────────────────────────────────────────────
 
-KB_PATH = Path("output/knowledge_base_rag.md")
-FAISS_PATH = Path("output/faiss_index_gemini")
-EMBED_MODEL = "models/gemini-embedding-2-preview"
-LLM_MODEL = "kimi-k2.6"  # Modelo comercial de Moonshot AI
-LLM_FALLBACK = "kimi-k2.5"  # Fallback si K2.6 no está disponible
+KB_PATH      = Path("output/knowledge_base_rag.md")
+FAISS_PATH   = Path("output/faiss_index_gemini")
+EMBED_MODEL  = "models/gemini-embedding-2-preview"
+LLM_MODEL    = "kimi-k2.6"          # Modelo comercial de Moonshot AI
+LLM_FALLBACK = "kimi-k2.5"          # Fallback si K2.6 no está disponible
 
-# ── Prompts (idénticos a app_rag.py para comparación justa) ────────────────────
+# ── Prompts ────────────────────
 
 QA_PROMPT = ChatPromptTemplate.from_messages(
     [
@@ -77,11 +80,11 @@ Paso 4 — Validar:
   Si no, no lo incluyas.
 
 ## FORMATO ADAPTATIVO DE RESPUESTA
-- Pregunta factual simple: 1-2 oraciones directas.
-- Pregunta sobre ubicación/contacto: dirección + teléfono + ciudad si están disponibles.
-- Pregunta multi-parte o compleja: párrafos cortos o lista con viñetas (•).
-- Pregunta comparativa o de proceso: tabla markdown si mejora la claridad.
-- Idioma: español formal y corporativo, sin jerga técnica innecesaria.
+•⁠  ⁠Pregunta factual simple: 1-2 oraciones directas.
+•⁠  ⁠Pregunta sobre ubicación/contacto: dirección + teléfono + ciudad si están disponibles.
+•⁠  ⁠Pregunta multi-parte o compleja: párrafos cortos o lista con viñetas (•).
+•⁠  ⁠Pregunta comparativa o de proceso: tabla markdown si mejora la claridad.
+•⁠  ⁠Idioma: español formal y corporativo, sin jerga técnica innecesaria.
 
 ## MANEJO DE AUSENCIA O INSUFICIENCIA DE INFORMACIÓN
 | Situación | Acción |
@@ -91,9 +94,9 @@ Paso 4 — Validar:
 | Pregunta ambigua | Interpretar la intención más probable, responder y ofrecer aclarar. |
 
 ## RESTRICCIONES NO NEGOCIABLES
-- Cero información externa sobre la empresa, aunque la conozcas con certeza.
-- Cero inventar: precios, contactos, fechas, certificaciones no mencionadas.
-- Cero frases vagas como "probablemente", "se estima" o "generalmente".""",
+•⁠  ⁠Cero información externa sobre la empresa, aunque la conozcas con certeza.
+•⁠  ⁠Cero inventar: precios, contactos, fechas, certificaciones no mencionadas.
+•⁠  ⁠Cero frases vagas como "probablemente", "se estima" o "generalmente".""",
         ),
         ("human", "Fragmentos de contexto:\n\n{context}\n\n---\n\nPregunta: {question}"),
     ]
@@ -114,33 +117,33 @@ El resumen debe ser apto para presentarlo a un directivo, inversionista o period
 ## ESTRUCTURA OBLIGATORIA
 Usa exactamente estos encabezados en negrita y este orden:
 
-**1. Identidad corporativa**
+*1. Identidad corporativa*
 Nombre actual y nombres históricos, año y lugar de fundación en Colombia, \
 origen del grupo internacional.
 
-**2. Propuesta de valor**
+*2. Propuesta de valor*
 Qué produce, para qué mercados, por qué es relevante en el contexto colombiano \
 y latinoamericano.
 
-**3. Presencia operativa en Colombia**
+*3. Presencia operativa en Colombia*
 Número de plantas, ciudades donde opera, tipos de instalaciones (molinos, \
 corrugado, sacos, forestal). Incluye datos de hectáreas o capacidad si están disponibles.
 
-**4. Portafolio de productos y servicios**
+*4. Portafolio de productos y servicios*
 Categorías de productos principales. Menciona nombres comerciales si aparecen.
 
-**5. Sostenibilidad y gobierno corporativo**
+*5. Sostenibilidad y gobierno corporativo*
 Certificaciones, compromisos medioambientales, programas sociales, marcos éticos.
 
-**6. Escala global**
+*6. Escala global*
 Países de operación, número de plantas globales, empleados mundiales si están disponibles.
 
 ## ESTÁNDARES DE CALIDAD
-- Tono: objetivo, informativo, sin superlativos ni lenguaje de marketing.
-- Cada sección: 2-4 oraciones con datos concretos cuando existan.
-- Total: entre 300 y 400 palabras.
-- No inventes datos que no estén en el documento.
-- Responde en español.""",
+•⁠  ⁠Tono: objetivo, informativo, sin superlativos ni lenguaje de marketing.
+•⁠  ⁠Cada sección: 2-4 oraciones con datos concretos cuando existan.
+•⁠  ⁠Total: entre 300 y 400 palabras.
+•⁠  ⁠No inventes datos que no estén en el documento.
+•⁠  ⁠Responde en español.""",
         ),
         ("human", "Documento corporativo:\n{document}"),
     ]
@@ -160,38 +163,37 @@ El objetivo es un banco de FAQs publicable en el sitio web corporativo.
 
 ## AUDIENCIA OBJETIVO
 Las preguntas deben representar la perspectiva de:
-- Clientes potenciales (empresas que necesitan empaques)
-- Proveedores buscando hacer negocios
-- Periodistas investigando a la compañía
-- Candidatos a empleos evaluando a la empresa
+•⁠  ⁠Clientes potenciales (empresas que necesitan empaques)
+•⁠  ⁠Proveedores buscando hacer negocios
+•⁠  ⁠Periodistas investigando a la compañía
+•⁠  ⁠Candidatos a empleos evaluando a la empresa
 
 ## DISTRIBUCIÓN TEMÁTICA OBLIGATORIA
-1. Historia e identidad corporativa (2 preguntas)
-2. Productos y servicios (2 preguntas)
-3. Ubicaciones y operaciones en Colombia (2 preguntas)
-4. Sostenibilidad, valores y responsabilidad social (2 preguntas)
-5. Presencia o relevancia global (1 pregunta)
-6. Cómo contactar o iniciar una relación comercial (1 pregunta)
+1.⁠ ⁠Historia e identidad corporativa (2 preguntas)
+2.⁠ ⁠Productos y servicios (2 preguntas)
+3.⁠ ⁠Ubicaciones y operaciones en Colombia (2 preguntas)
+4.⁠ ⁠Sostenibilidad, valores y responsabilidad social (2 preguntas)
+5.⁠ ⁠Presencia o relevancia global (1 pregunta)
+6.⁠ ⁠Cómo contactar o iniciar una relación comercial (1 pregunta)
 
 ## FORMATO EXACTO — replica este patrón para las 10 FAQs:
-**P1: [pregunta formulada desde la perspectiva externa, específica y concreta]**
+*P1: [pregunta formulada desde la perspectiva externa, específica y concreta]*
 R: [respuesta directa basada en el documento. Máximo 3 oraciones. \
 Incluye datos, cifras o nombres si están disponibles.]
 
 ## CRITERIOS DE CALIDAD
-- Preguntas formuladas desde fuera de la empresa, no en primera persona corporativa.
-- Respuestas que aporten valor real, no respuestas vagas o genéricas.
-- Progresión lógica: de lo general (historia) a lo específico (contacto).
-- No repitas información entre preguntas.
-- No inventes datos que no estén en el documento.
-- Responde en español.""",
+•⁠  ⁠Preguntas formuladas desde fuera de la empresa, no en primera persona corporativa.
+•⁠  ⁠Respuestas que aporten valor real, no respuestas vagas o genéricas.
+•⁠  ⁠Progresión lógica: de lo general (historia) a lo específico (contacto).
+•⁠  ⁠No repitas información entre preguntas.
+•⁠  ⁠No inventes datos que no estén en el documento.
+•⁠  ⁠Responde en español.""",
         ),
         ("human", "Documento corporativo:\n{document}"),
     ]
 )
 
 # ── Utilidades ────────────────────────────────────────────────────────────────
-
 
 def get_moonshot_api_key() -> str | None:
     """Obtiene la API key desde entorno o secrets de Streamlit."""
@@ -214,9 +216,7 @@ def get_embeddings():
     api_key = get_google_api_key()
     if not api_key:
         st.error("🔑 No se encontró `GOOGLE_API_KEY`. Agrégala al archivo `.env`.")
-        st.info(
-            "Obtén tu key gratuita en [aistudio.google.com/apikey](https://aistudio.google.com/apikey)"
-        )
+        st.info("Obtén tu key gratuita en [aistudio.google.com/apikey](https://aistudio.google.com/apikey)")
         st.stop()
     return GoogleGenerativeAIEmbeddings(model=EMBED_MODEL, google_api_key=api_key)
 
@@ -261,24 +261,22 @@ def load_vectorstore():
                 break
             except Exception as e:
                 if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                    wait = SLEEP_BETWEEN_BATCHES * (2**intento)
+                    wait = SLEEP_BETWEEN_BATCHES * (2 ** intento)
                     avance_txt = min(i + BATCH, len(chunks))
                     progress.progress(
                         i / len(chunks),
-                        text=f"Rate limit — esperando {wait}s... ({avance_txt}/{len(chunks)})",
+                        text=f"Rate limit — esperando {wait}s... ({avance_txt}/{len(chunks)})"
                     )
                     time.sleep(wait)
                 else:
                     raise
         avance = min(i + BATCH, len(chunks))
-        progress.progress(
-            avance / len(chunks), text=f"Generando embeddings — {avance}/{len(chunks)} chunks"
-        )
+        progress.progress(avance / len(chunks), text=f"Generando embeddings — {avance}/{len(chunks)} chunks")
         if i + BATCH < len(chunks):
             time.sleep(SLEEP_BETWEEN_BATCHES)
     progress.empty()
 
-    text_embedding_pairs = list(zip(chunks, all_vectors, strict=False))
+    text_embedding_pairs = list(zip(chunks, all_vectors))
     vectorstore = FAISS.from_embeddings(text_embedding_pairs, embeddings)
 
     FAISS_PATH.mkdir(parents=True, exist_ok=True)
@@ -288,7 +286,10 @@ def load_vectorstore():
 
 # ── UI ───────────────────────────────────────────────────────────────────────
 
-st.set_page_config(page_title="Q&A RAG — Smurfit Kappa Colombia (Kimi K2.6)", layout="wide")
+st.set_page_config(
+    page_title="Q&A RAG — Smurfit Kappa Colombia (Kimi K2.6)",
+    layout="wide"
+)
 st.title("🤖 Smurfit Kappa Colombia — Asistente Virtual")
 st.caption("RAG con **LangChain · FAISS · OllamaEmbeddings · Kimi K2.6** (comercial)")
 
@@ -326,18 +327,31 @@ with st.sidebar:
     modelo = st.selectbox("Modelo LLM comercial", modelo_opciones, index=0)
 
     # Toggle thinking mode
-    thinking = st.toggle(
-        "Modo razonamiento (thinking)",
-        value=False,
-        help="Kimi K2.6 puede razonar antes de responder. Útil para preguntas complejas, pero consume más tokens.",
-    )
+    thinking = st.toggle("Modo razonamiento (thinking)", value=False,
+                         help="Kimi K2.6 puede razonar antes de responder. Útil para preguntas complejas, pero consume más tokens.")
 
     top_k = st.slider("Chunks a recuperar (top-k)", 1, 8, 4)
+
+    with st.expander("Parámetros de muestreo del LLM"):
+        st.caption("⚠️ Kimi K2.6 fija `temperature=1.0` y `top_p=0.95` por diseño del proveedor.")
+        temperature = st.slider("Temperature", 0.0, 2.0, 1.0, 0.1, disabled=True,
+                                help="Restringido por el proveedor para kimi-k2.6.")
+        sampling_top_p = st.slider("top_p (nucleus sampling)", 0.0, 1.0, 0.95, 0.05, disabled=True,
+                                   help="Restringido por el proveedor para kimi-k2.6.")
+        frequency_penalty = st.slider("frequency_penalty", -2.0, 2.0, 0.0, 0.1,
+                                      help="Penaliza tokens según su frecuencia previa.")
+        presence_penalty = st.slider("presence_penalty", -2.0, 2.0, 0.0, 0.1,
+                                     help="Penaliza tokens que ya aparecieron al menos una vez.")
+        unlimited_tokens = st.checkbox("max_tokens ilimitado", value=True,
+                                       help="Si está activo, no se envía max_tokens y la API usa el tope natural del modelo (Kimi K2.6: 256K contexto).")
+        max_tokens = st.number_input("max_tokens", 64, 32768, 4096, 64,
+                                     disabled=unlimited_tokens,
+                                     help="Solo se aplica si 'ilimitado' está desactivado. Kimi K2.6 consume parte en razonamiento interno.")
 
     st.divider()
     st.caption(f"🔧 Embeddings: `{EMBED_MODEL}` (Google Gemini)")
     st.caption(f"🧠 LLM: `{modelo}` (Moonshot AI)")
-    st.caption("📦 Vector store: FAISS (local)")
+    st.caption(f"📦 Vector store: FAISS (local)")
 
 # ── Verificar KB ──────────────────────────────────────────────────────────────
 
@@ -354,9 +368,16 @@ st.sidebar.success(f"✅ Índice FAISS cargado — {vectorstore.index.ntotal} ve
 
 llm_kwargs = {
     "model": modelo,
-    "temperature": 1,  # kimi-k2.6 solo acepta temperature=0.6
+    "temperature": 1.0,  # kimi-k2.6 solo acepta temperature=1.0
+    "top_p": 0.95,        # kimi-k2.6 solo acepta top_p=0.95
+    "frequency_penalty": frequency_penalty,
+    "presence_penalty": presence_penalty,
     "max_retries": 2,
 }
+
+# Solo se envía max_tokens si el usuario desactivó el modo ilimitado
+if not unlimited_tokens:
+    llm_kwargs["max_tokens"] = int(max_tokens)
 
 if thinking:
     llm_kwargs["thinking"] = True
@@ -365,16 +386,37 @@ llm = ChatMoonshot(**llm_kwargs)
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 
-tab_qa, tab_summary, tab_faq, tab_info = st.tabs(
-    ["❓ Q&A", "📋 Resumen ejecutivo", "🙋 FAQs", "ℹ️ Info"]
+FAQS_USUARIO = [
+    "¿Cuándo fue fundada Cartón de Colombia y en qué ciudad?",
+    "¿En qué año se fusionó Smurfit con Kappa Packaging y cómo se llamó la empresa resultante?",
+    "¿Cuál es el nombre actual de la empresa tras la fusión de 2024?",
+    "¿Cuántos países tiene presencia el grupo Smurfit Westrock y cuántos empleados tiene globalmente?",
+    "¿En qué dirección exacta está ubicada la planta corrugadora de Bogotá?",
+    "¿Qué tipo de productos fabrica la planta de Guarne en Antioquia?",
+    "¿Cuántas plantas corrugadoras tiene Smurfit Kappa en Colombia y en qué ciudades están?",
+    "¿Qué certificación tiene la planta de Medellín y qué significa esa certificación?",
+    "¿Dónde está ubicada la planta de Sacos de Papel y qué produce?",
+    "¿Qué es el sistema Bag-in-Box y para qué industrias está diseñado?",
+    "¿Qué es la cartulina Óptima y cuáles son sus principales usos?",
+    "¿Qué soluciones de empaque ofrece la empresa para el canal eCommerce?",
+    "¿Hasta cuántos colores de impresión pueden tener los empaques corrugados de la empresa?",
+    "¿Qué tipos de sacos de papel fabrica la empresa y para qué industrias?",
+    "¿Cuántas hectáreas gestiona la División Forestal de Smurfit Kappa en Colombia?",
+    "¿Desde qué año tiene la División Forestal la certificación FSC y qué garantiza esa certificación?",
+    "¿En cuántos departamentos de Colombia opera la División Forestal?",
+    "¿Cuál es el precio por tonelada del cartón corrugado que vende la empresa?",
+    "¿Cuántos empleados tiene específicamente la planta de Barranquilla?",
+    "¿Cuál es el correo electrónico del gerente general de Smurfit Kappa Colombia?",
+]
+
+tab_qa, tab_summary, tab_faq, tab_faqs_user, tab_info = st.tabs(
+    ["❓ Q&A", "📋 Resumen ejecutivo", "🙋 FAQs", "👤 FAQs Usuario", "ℹ️ Info"]
 )
 
 # ── Tab Q&A ───────────────────────────────────────────────────────────────────
 with tab_qa:
     st.subheader("Preguntas y Respuestas")
-    st.caption(
-        "El sistema recupera chunks relevantes de la base de conocimiento y usa Kimi K2.6 para generar la respuesta."
-    )
+    st.caption("El sistema recupera chunks relevantes de la base de conocimiento y usa Kimi K2.6 para generar la respuesta.")
 
     question = st.text_area(
         "Escribe tu pregunta:",
@@ -408,10 +450,15 @@ with tab_qa:
 
             answer_box = st.empty()
             full_answer = ""
-            with st.spinner("🧠 Kimi K2.6 generando respuesta..."):
-                for token in chain.stream(question):
-                    full_answer += token
-                    answer_box.markdown(full_answer)
+            try:
+                with st.spinner("🧠 Kimi K2.6 generando respuesta..."):
+                    for token in chain.stream(question):
+                        full_answer += token
+                        answer_box.markdown(full_answer or "_Procesando..._")
+                if not full_answer.strip():
+                    answer_box.warning("La API no devolvió contenido. Revisa los parámetros de muestreo o intenta de nuevo.")
+            except Exception as e:
+                st.error(f"Error generando respuesta: {e}")
 
 # ── Tab Resumen ───────────────────────────────────────────────────────────────
 with tab_summary:
@@ -425,11 +472,15 @@ with tab_summary:
         chain = SUMMARY_PROMPT | llm | StrOutputParser()
 
         answer_box = st.empty()
-        full_answer = ""
-        with st.spinner("🧠 Kimi K2.6 generando resumen..."):
-            for token in chain.stream({"document": document_excerpt}):
-                full_answer += token
+        try:
+            with st.spinner("🧠 Kimi K2.6 generando resumen (puede tardar 20-40s)..."):
+                full_answer = chain.invoke({"document": document_excerpt})
+            if not full_answer.strip():
+                answer_box.warning("La API no devolvió contenido. Sube `max_tokens` o intenta de nuevo.")
+            else:
                 answer_box.markdown(full_answer)
+        except Exception as e:
+            st.error(f"Error generando resumen: {e}")
 
 # ── Tab FAQ ───────────────────────────────────────────────────────────────────
 with tab_faq:
@@ -443,11 +494,22 @@ with tab_faq:
         chain = FAQ_PROMPT | llm | StrOutputParser()
 
         answer_box = st.empty()
-        full_answer = ""
-        with st.spinner("🧠 Kimi K2.6 generando FAQs..."):
-            for token in chain.stream({"document": document_excerpt}):
-                full_answer += token
+        try:
+            with st.spinner("🧠 Kimi K2.6 generando FAQs (puede tardar 30-60s)..."):
+                full_answer = chain.invoke({"document": document_excerpt})
+            if not full_answer.strip():
+                answer_box.warning("La API no devolvió contenido. Sube `max_tokens` o intenta de nuevo.")
+            else:
                 answer_box.markdown(full_answer)
+        except Exception as e:
+            st.error(f"Error generando FAQs: {e}")
+
+# ── Tab FAQs Usuario ──────────────────────────────────────────────────────────
+with tab_faqs_user:
+    st.subheader("Preguntas frecuentes del usuario")
+    st.caption("Listado de preguntas predefinidas para evaluar el sistema.")
+    for i, q in enumerate(FAQS_USUARIO, 1):
+        st.markdown(f"**{i}.** {q}")
 
 # ── Tab Info ──────────────────────────────────────────────────────────────────
 with tab_info:
@@ -481,4 +543,6 @@ with tab_info:
     1. Variable de entorno: `export MOONSHOT_API_KEY='sk-...'`
     2. Archivo `.env` en la raíz del proyecto
     3. `~/.streamlit/secrets.toml` (para despliegue en Streamlit Cloud)
+
+    
     """)
