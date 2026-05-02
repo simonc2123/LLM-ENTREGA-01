@@ -1,4 +1,4 @@
-.PHONY: help scrape kb app rag rag-google all
+.PHONY: help scrape kb app rag rag-google rag-comercial all
 
 # Muestra los comandos disponibles (target por defecto)
 help:
@@ -11,8 +11,11 @@ help:
 	@echo "  make kb       Genera las bases de conocimiento (compacta + RAG)"
 	@echo "  make app      Lanza la app Q&A con busqueda por keywords"
 	@echo "  make rag        Lanza la app RAG con Ollama 100% local"
-	@echo "  make rag-google Lanza la app RAG con Google Gemini (+ fallback Ollama)"
-	@echo "  make all        Ejecuta scrape + kb + app en orden"
+	@echo "  make rag-google    Lanza la app RAG con Google Gemini (+ fallback Ollama)"
+	@echo "  make rag-comercial Lanza la app RAG con Gemini Embeddings + Kimi K2.6"
+	@echo "  make lint          Verifica estilo del codigo"
+	@echo "  make format        Corrige y formatea automaticamente"
+	@echo "  make all           Ejecuta scrape + kb + app en orden"
 	@echo ""
 
 # Corre todo en orden
@@ -37,6 +40,10 @@ rag:
 # 5. Lanzar la aplicación Q&A con RAG — Google Gemini + fallback Ollama
 rag-google:
 	uv run streamlit run app_rag_google.py
+
+# 6. Lanzar la aplicación Q&A con RAG — Gemini Embeddings + Kimi K2.6
+rag-comercial:
+	uv run streamlit run app_rag_comercial.py
 
 # 6. Verificar estilo y calidad del código (sin modificar archivos)
 lint:

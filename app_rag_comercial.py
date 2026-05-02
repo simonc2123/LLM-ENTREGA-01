@@ -23,21 +23,18 @@ Uso:
 """
 
 import os
-import sys
 import time
+from pathlib import Path
 
 import streamlit as st
 from dotenv import load_dotenv
-from pathlib import Path
-
-from langchain_moonshot import ChatMoonshot
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.documents import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_moonshot import ChatMoonshot
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # ── Cargar variables de entorno ───────────────────────────────────────────────
 
@@ -45,16 +42,19 @@ load_dotenv()
 
 # ── Configuración ─────────────────────────────────────────────────────────────
 
-KB_PATH      = Path("output/knowledge_base_rag.md")
-FAISS_PATH   = Path("output/faiss_index_gemini")
-EMBED_MODEL  = "models/gemini-embedding-2-preview"
-LLM_MODEL    = "kimi-k2.6"          # Modelo comercial de Moonshot AI
-LLM_FALLBACK = "kimi-k2.5"          # Fallback si K2.6 no está disponible
+KB_PATH = Path("output/knowledge_base_rag.md")
+FAISS_PATH = Path("output/faiss_index_gemini")
+EMBED_MODEL = "models/gemini-embedding-2-preview"
+LLM_MODEL = "kimi-k2.6"  # Modelo comercial de Moonshot AI
+LLM_FALLBACK = "kimi-k2.5"  # Fallback si K2.6 no está disponible
 
 # ── Prompts (idénticos a app_rag.py para comparación justa) ────────────────────
 
-QA_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """Eres un asistente virtual de Smurfit Kappa Colombia \
+QA_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """Eres un asistente virtual de Smurfit Kappa Colombia \
 (Cartón de Colombia / Smurfit Westrock).
 
 Responde la pregunta usando ÚNICAMENTE los fragmentos de contexto proporcionados.
@@ -64,12 +64,17 @@ REGLAS:
 - Combina fragmentos si es necesario para dar una respuesta completa.
 - Si el contexto no contiene la respuesta, di: "Esa información no está disponible."
 - Nunca uses conocimiento externo sobre la empresa.
-- Responde siempre en español, de forma clara y directa."""),
-    ("human", "Contexto:\n{context}\n\nPregunta: {question}"),
-])
+- Responde siempre en español, de forma clara y directa.""",
+        ),
+        ("human", "Contexto:\n{context}\n\nPregunta: {question}"),
+    ]
+)
 
-SUMMARY_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """Eres un analista experto en comunicación corporativa. \
+SUMMARY_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """Eres un analista experto en comunicación corporativa. \
 Tu tarea es generar un resumen ejecutivo claro y profesional de la empresa \
 basándote ÚNICAMENTE en la información del documento proporcionado.
 
@@ -80,12 +85,17 @@ El resumen debe cubrir:
 4. Sus valores y compromisos (sostenibilidad, ética)
 5. Su presencia global
 
-Responde en español. Máximo 300 palabras."""),
-    ("human", "Documento de la empresa:\n{document}"),
-])
+Responde en español. Máximo 300 palabras.""",
+        ),
+        ("human", "Documento de la empresa:\n{document}"),
+    ]
+)
 
-FAQ_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """Eres un experto en comunicación con clientes. \
+FAQ_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """Eres un experto en comunicación con clientes. \
 Basándote ÚNICAMENTE en el documento proporcionado, genera exactamente 10 \
 preguntas frecuentes (FAQs) con sus respuestas, que un cliente nuevo \
 haría al conocer esta empresa.
@@ -95,11 +105,14 @@ Formato de respuesta:
 R: [respuesta basada en el documento]
 
 Cubre temas variados: historia, productos, ubicaciones, sostenibilidad, contacto.
-Responde en español."""),
-    ("human", "Documento de la empresa:\n{document}"),
-])
+Responde en español.""",
+        ),
+        ("human", "Documento de la empresa:\n{document}"),
+    ]
+)
 
 # ── Utilidades ────────────────────────────────────────────────────────────────
+
 
 def get_moonshot_api_key() -> str | None:
     """Obtiene la API key desde entorno o secrets de Streamlit."""
@@ -122,7 +135,9 @@ def get_embeddings():
     api_key = get_google_api_key()
     if not api_key:
         st.error("🔑 No se encontró `GOOGLE_API_KEY`. Agrégala al archivo `.env`.")
-        st.info("Obtén tu key gratuita en [aistudio.google.com/apikey](https://aistudio.google.com/apikey)")
+        st.info(
+            "Obtén tu key gratuita en [aistudio.google.com/apikey](https://aistudio.google.com/apikey)"
+        )
         st.stop()
     return GoogleGenerativeAIEmbeddings(model=EMBED_MODEL, google_api_key=api_key)
 
@@ -167,22 +182,24 @@ def load_vectorstore():
                 break
             except Exception as e:
                 if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                    wait = SLEEP_BETWEEN_BATCHES * (2 ** intento)
+                    wait = SLEEP_BETWEEN_BATCHES * (2**intento)
                     avance_txt = min(i + BATCH, len(chunks))
                     progress.progress(
                         i / len(chunks),
-                        text=f"Rate limit — esperando {wait}s... ({avance_txt}/{len(chunks)})"
+                        text=f"Rate limit — esperando {wait}s... ({avance_txt}/{len(chunks)})",
                     )
                     time.sleep(wait)
                 else:
                     raise
         avance = min(i + BATCH, len(chunks))
-        progress.progress(avance / len(chunks), text=f"Generando embeddings — {avance}/{len(chunks)} chunks")
+        progress.progress(
+            avance / len(chunks), text=f"Generando embeddings — {avance}/{len(chunks)} chunks"
+        )
         if i + BATCH < len(chunks):
             time.sleep(SLEEP_BETWEEN_BATCHES)
     progress.empty()
 
-    text_embedding_pairs = list(zip(chunks, all_vectors))
+    text_embedding_pairs = list(zip(chunks, all_vectors, strict=False))
     vectorstore = FAISS.from_embeddings(text_embedding_pairs, embeddings)
 
     FAISS_PATH.mkdir(parents=True, exist_ok=True)
@@ -192,10 +209,7 @@ def load_vectorstore():
 
 # ── UI ───────────────────────────────────────────────────────────────────────
 
-st.set_page_config(
-    page_title="Q&A RAG — Smurfit Kappa Colombia (Kimi K2.6)",
-    layout="wide"
-)
+st.set_page_config(page_title="Q&A RAG — Smurfit Kappa Colombia (Kimi K2.6)", layout="wide")
 st.title("🤖 Smurfit Kappa Colombia — Asistente Virtual")
 st.caption("RAG con **LangChain · FAISS · OllamaEmbeddings · Kimi K2.6** (comercial)")
 
@@ -233,15 +247,18 @@ with st.sidebar:
     modelo = st.selectbox("Modelo LLM comercial", modelo_opciones, index=0)
 
     # Toggle thinking mode
-    thinking = st.toggle("Modo razonamiento (thinking)", value=False,
-                         help="Kimi K2.6 puede razonar antes de responder. Útil para preguntas complejas, pero consume más tokens.")
+    thinking = st.toggle(
+        "Modo razonamiento (thinking)",
+        value=False,
+        help="Kimi K2.6 puede razonar antes de responder. Útil para preguntas complejas, pero consume más tokens.",
+    )
 
     top_k = st.slider("Chunks a recuperar (top-k)", 1, 8, 4)
 
     st.divider()
     st.caption(f"🔧 Embeddings: `{EMBED_MODEL}` (Google Gemini)")
     st.caption(f"🧠 LLM: `{modelo}` (Moonshot AI)")
-    st.caption(f"📦 Vector store: FAISS (local)")
+    st.caption("📦 Vector store: FAISS (local)")
 
 # ── Verificar KB ──────────────────────────────────────────────────────────────
 
@@ -269,12 +286,16 @@ llm = ChatMoonshot(**llm_kwargs)
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 
-tab_qa, tab_summary, tab_faq, tab_info = st.tabs(["❓ Q&A", "📋 Resumen ejecutivo", "🙋 FAQs", "ℹ️ Info"])
+tab_qa, tab_summary, tab_faq, tab_info = st.tabs(
+    ["❓ Q&A", "📋 Resumen ejecutivo", "🙋 FAQs", "ℹ️ Info"]
+)
 
 # ── Tab Q&A ───────────────────────────────────────────────────────────────────
 with tab_qa:
     st.subheader("Preguntas y Respuestas")
-    st.caption("El sistema recupera chunks relevantes de la base de conocimiento y usa Kimi K2.6 para generar la respuesta.")
+    st.caption(
+        "El sistema recupera chunks relevantes de la base de conocimiento y usa Kimi K2.6 para generar la respuesta."
+    )
 
     question = st.text_area(
         "Escribe tu pregunta:",
@@ -381,6 +402,4 @@ with tab_info:
     1. Variable de entorno: `export MOONSHOT_API_KEY='sk-...'`
     2. Archivo `.env` en la raíz del proyecto
     3. `~/.streamlit/secrets.toml` (para despliegue en Streamlit Cloud)
-
-    
     """)
