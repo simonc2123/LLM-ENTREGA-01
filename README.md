@@ -180,7 +180,7 @@ Evolución del RAG del módulo 1 hacia un **agente con memoria y router de herra
 ```bash
 cd modulo2-agente/backend
 cp .env.example .env
-# Edita .env con tus credenciales: OPENAI_API_KEY, GOOGLE_API_KEY, DB_PASSWORD
+#credenciales: OPENAI_API_KEY, GOOGLE_API_KEY, DB_PASSWORD
 uv sync
 uv run uvicorn main:app --reload --port 8000
 ```
@@ -230,7 +230,7 @@ Headers requeridos en endpoints autenticados:
 - `X-User-Id`: uno de `antonio`, `bradley`, `camilo`, `simon`
 - `X-Model-Provider`: `commercial` o `local`
 
-## Casos de prueba (cumplimiento del enunciado)
+## Casos de prueba
 
 | Caso | Pregunta de ejemplo | Tool esperada |
 |---|---|---|
